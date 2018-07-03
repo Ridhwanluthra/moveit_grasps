@@ -116,6 +116,15 @@ target_link_libraries(${PROJECT_NAME}_test
   ${Boost_LIBRARIES}
 )
 
+# Test IK stuff
+add_executable(${PROJECT_NAME}_ik_test src/test/ik_tester.cpp)
+target_link_libraries(${PROJECT_NAME}_ik_test
+  ${PROJECT_NAME}
+  ${PROJECT_NAME}_filter
+  ${catkin_LIBRARIES}
+  ${Boost_LIBRARIES}
+)
+
 # Test mesh bounding box
 add_executable(bounding_box_test src/test/mesh_bounding_box_test.cpp)
 target_link_libraries(bounding_box_test
@@ -149,5 +158,6 @@ install(DIRECTORY resources DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 install(TARGETS
   ${PROJECT_NAME}_test
   ${PROJECT_NAME}_filter_test
+  ${PROJECT_NAME}_ik_test
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})

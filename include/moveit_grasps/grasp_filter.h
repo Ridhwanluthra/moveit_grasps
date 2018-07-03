@@ -110,25 +110,22 @@ struct IkThreadStruct
 {
   IkThreadStruct(std::vector<GraspCandidatePtr>& grasp_candidates,  // the input
                  planning_scene::PlanningScenePtr planning_scene, Eigen::Affine3d& link_transform, std::size_t grasp_id,
-                 kinematics::KinematicsBaseConstPtr kin_solver, robot_state::RobotStatePtr robot_state, double timeout,
+                 robot_state::RobotStatePtr robot_state, double timeout,
                  bool filter_pregrasp, bool verbose, std::size_t thread_id)
     : grasp_candidates_(grasp_candidates)
     , planning_scene_(planning_scene)
     , link_transform_(link_transform)
     , grasp_id(grasp_id)
-    , kin_solver_(kin_solver)
     , robot_state_(robot_state)
     , timeout_(timeout)
     , filter_pregrasp_(filter_pregrasp)
     , verbose_(verbose)
     , thread_id_(thread_id)
-  {
-  }
+  {}
   std::vector<GraspCandidatePtr>& grasp_candidates_;
   planning_scene::PlanningScenePtr planning_scene_;
   Eigen::Affine3d link_transform_;
   std::size_t grasp_id;
-  kinematics::KinematicsBaseConstPtr kin_solver_;
   robot_state::RobotStatePtr robot_state_;
   const robot_model::JointModelGroup* arm_jmg_;
   double timeout_;
@@ -210,6 +207,10 @@ public:
   bool findIKSolution(std::vector<double>& ik_solution, IkThreadStructPtr& ik_thread_struct,
                       GraspCandidatePtr& grasp_candidate,
                       const moveit::core::GroupStateValidityCallbackFn& constraint_fn);
+
+  bool findIKSolutionNew(std::vector<double>& ik_solution, IkThreadStructPtr& ik_thread_struct,
+                         GraspCandidatePtr& grasp_candidate,
+                         const moveit::core::GroupStateValidityCallbackFn& constraint_fn);
 
   /**
    * \brief Check if ik solution is in collision with fingers closed
@@ -301,7 +302,7 @@ private:
   std::vector<robot_state::RobotStatePtr> robot_states_;
 
   // Threaded kinematic solvers
-  std::map<std::string, std::vector<kinematics::KinematicsBaseConstPtr> > kin_solvers_;
+  // std::map<std::string, std::vector<kinematics::KinematicsBaseConstPtr> > kin_solvers_;
 
   // Class for publishing stuff to rviz
   moveit_visual_tools::MoveItVisualToolsPtr visual_tools_;

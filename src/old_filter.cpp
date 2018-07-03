@@ -325,7 +325,7 @@ std::size_t GraspFilter::filterGraspsHelper(std::vector<GraspCandidatePtr>& gras
   // Transform poses -------------------------------------------------------------------------------
   // // bring the pose to the frame of the IK solver
   // const std::string& ik_frame = kin_solvers_[arm_jmg->getName()][0]->getBaseFrame();
-  Eigen::Affine3d link_transform;
+  // Eigen::Affine3d link_transform;
   // ROS_DEBUG_STREAM_NAMED("grasp_filter.superdebug",
   //                        "Frame transform from ik_frame: " << ik_frame << " and robot model frame: "
   //                                                          << robot_state_->getRobotModel()->getModelFrame());
@@ -360,6 +360,7 @@ std::size_t GraspFilter::filterGraspsHelper(std::vector<GraspCandidatePtr>& gras
   {
     ik_thread_structs[thread_id].reset(new moveit_grasps::IkThreadStruct(grasp_candidates, cloned_scene, link_transform,
                                                                          0,  // this is filled in by OpenMP
+                                                                         kin_solvers_[arm_jmg->getName()][thread_id],
                                                                          robot_states_[thread_id], solver_timeout_,
                                                                          filter_pregrasp, verbose, thread_id));
     ik_thread_structs[thread_id]->ik_seed_state_ = ik_seed_state;
@@ -455,68 +456,64 @@ bool GraspFilter::processCandidateGrasp(IkThreadStructPtr& ik_thread_struct)
   // Get pose
   ik_thread_struct->ik_pose_ = grasp_candidate->grasp_.grasp_pose;
 
-  // // Debug
-  // if (ik_thread_struct->verbose_ && false)
-  // {
-  //   ik_thread_struct->ik_pose_.header.frame_id = ik_thread_struct->kin_solver_->getBaseFrame();
-  //   visual_tools_->publishZArrow(ik_thread_struct->ik_pose_.pose, rviz_visual_tools::RED, rviz_visual_tools::REGULAR,
-  //                                0.1);
-  // }
+  // Debug
+  if (ik_thread_struct->verbose_ && false)
+  {
+    ik_thread_struct->ik_pose_.header.frame_id = ik_thread_struct->kin_solver_->getBaseFrame();
+    visual_tools_->publishZArrow(ik_thread_struct->ik_pose_.pose, rviz_visual_tools::RED, rviz_visual_tools::REGULAR,
+                                 0.1);
+  }
 
-  // // Filter by cutting planes
-  // for (std::size_t i = 0; i < cutting_planes_.size(); i++)
-  // {
-  //   if (filterGraspByPlane(grasp_candidate, cutting_planes_[i]->pose_, cutting_planes_[i]->plane_,
-  //                          cutting_planes_[i]->direction_) == true)
-  //   {
-  //     grasp_candidate->grasp_filtered_by_cutting_plane_ = true;
-  //     return false;
-  //   }
-  // }
+  // Filter by cutting planes
+  for (std::size_t i = 0; i < cutting_planes_.size(); i++)
+  {
+    if (filterGraspByPlane(grasp_candidate, cutting_planes_[i]->pose_, cutting_planes_[i]->plane_,
+                           cutting_planes_[i]->direction_) == true)
+    {
+      grasp_candidate->grasp_filtered_by_cutting_plane_ = true;
+      return false;
+    }
+  }
 
-  // // Filter by desired orientation
-  // for (std::size_t i = 0; i < desired_grasp_orientations_.size(); i++)
-  // {
-  //   if (filterGraspByOrientation(grasp_candidate, desired_grasp_orientations_[i]->pose_,
-  //                                desired_grasp_orientations_[i]->max_angle_offset_) == true)
-  //   {
-  //     grasp_candidate->grasp_filtered_by_orientation_ = true;
-  //     return false;
-  //   }
-  // }
+  // Filter by desired orientation
+  for (std::size_t i = 0; i < desired_grasp_orientations_.size(); i++)
+  {
+    if (filterGraspByOrientation(grasp_candidate, desired_grasp_orientations_[i]->pose_,
+                                 desired_grasp_orientations_[i]->max_angle_offset_) == true)
+    {
+      grasp_candidate->grasp_filtered_by_orientation_ = true;
+      return false;
+    }
+  }
 
   moveit::core::GroupStateValidityCallbackFn constraint_fn = boost::bind(
       &isGraspStateValid, ik_thread_struct->planning_scene_.get(), collision_verbose_ || ik_thread_struct->verbose_,
       collision_verbose_speed_, visual_tools_, _1, _2, _3);
 
   // Set gripper position (how open the fingers are) to the custom open position
-  // grasp_candidate->getGraspStateOpenEEOnly(ik_thread_struct->robot_state_);
+  grasp_candidate->getGraspStateOpenEEOnly(ik_thread_struct->robot_state_);
 
   // Solve IK Problem for grasp posture
-  bool found_ik = ik_thread_struct->robot_state_->setFromIK(ik_thread_struct->arm_jmg_, ik_thread_struct->ik_pose_.pose, 10, 0.1);
-  if (!found_ik)
-  // if (!findIKSolutionNew(grasp_candidate->grasp_ik_solution_, ik_thread_struct, grasp_candidate, constraint_fn))
+  if (!findIKSolutionNew(grasp_candidate->grasp_ik_solution_, ik_thread_struct, grasp_candidate, constraint_fn))
   {
-    ROS_INFO("Did not find IK solution");
     ROS_DEBUG_STREAM_NAMED("grasp_filter.superdebug", "Unable to find the-grasp IK solution");
     grasp_candidate->grasp_filtered_by_ik_ = true;
     return false;
   }
 
   // Copy solution to seed state so that next solution is faster
-  // ik_thread_struct->ik_seed_state_ = grasp_candidate->grasp_ik_solution_;
+  ik_thread_struct->ik_seed_state_ = grasp_candidate->grasp_ik_solution_;
 
-  // // Check if IK solution for grasp pose is valid for fingers closed as well
-  // if (!checkFingersClosedIK(grasp_candidate->grasp_ik_solution_, ik_thread_struct, grasp_candidate, constraint_fn))
-  // {
-  //   ROS_DEBUG_STREAM_NAMED("grasp_filter.superdebug", "Unable to find the-grasp IK solution with CLOSED fingers");
-  //   grasp_candidate->grasp_filtered_by_ik_closed_ = true;
-  //   return false;
-  // }
+  // Check if IK solution for grasp pose is valid for fingers closed as well
+  if (!checkFingersClosedIK(grasp_candidate->grasp_ik_solution_, ik_thread_struct, grasp_candidate, constraint_fn))
+  {
+    ROS_DEBUG_STREAM_NAMED("grasp_filter.superdebug", "Unable to find the-grasp IK solution with CLOSED fingers");
+    grasp_candidate->grasp_filtered_by_ik_closed_ = true;
+    return false;
+  }
 
   // Start pre-grasp section ----------------------------------------------------------
-  // if (ik_thread_struct->filter_pregrasp_)  // optionally check the pregrasp
-  if (false)
+  if (ik_thread_struct->filter_pregrasp_)  // optionally check the pregrasp
   {
     // Convert to a pre-grasp
     const std::string& ee_parent_link_name = grasp_candidate->grasp_data_->ee_jmg_->getEndEffectorParentGroup().second;
@@ -545,48 +542,48 @@ bool GraspFilter::processCandidateGrasp(IkThreadStructPtr& ik_thread_struct)
   return true;
 }
 
-// bool GraspFilter::findIKSolution(std::vector<double>& ik_solution, IkThreadStructPtr& ik_thread_struct,
-//                                  GraspCandidatePtr& grasp_candidate,
-//                                  const moveit::core::GroupStateValidityCallbackFn& constraint_fn)
-// {
-//   // Transform current pose to frame of planning group
-//   Eigen::Affine3d eigen_pose;
-//   tf::poseMsgToEigen(ik_thread_struct->ik_pose_.pose, eigen_pose);
-//   eigen_pose = ik_thread_struct->link_transform_ * eigen_pose;
-//   tf::poseEigenToMsg(eigen_pose, ik_thread_struct->ik_pose_.pose);
+bool GraspFilter::findIKSolution(std::vector<double>& ik_solution, IkThreadStructPtr& ik_thread_struct,
+                                 GraspCandidatePtr& grasp_candidate,
+                                 const moveit::core::GroupStateValidityCallbackFn& constraint_fn)
+{
+  // Transform current pose to frame of planning group
+  Eigen::Affine3d eigen_pose;
+  tf::poseMsgToEigen(ik_thread_struct->ik_pose_.pose, eigen_pose);
+  eigen_pose = ik_thread_struct->link_transform_ * eigen_pose;
+  tf::poseEigenToMsg(eigen_pose, ik_thread_struct->ik_pose_.pose);
 
-//   // Set callback function
-//   kinematics::KinematicsBase::IKCallbackFn ik_callback_fn;
-//   if (constraint_fn)
-//     ik_callback_fn = boost::bind(&ikCallbackFnAdapter, ik_thread_struct->robot_state_.get(),
-//                                  grasp_candidate->grasp_data_->arm_jmg_, constraint_fn, _1, _2, _3);
+  // Set callback function
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn;
+  if (constraint_fn)
+    ik_callback_fn = boost::bind(&ikCallbackFnAdapter, ik_thread_struct->robot_state_.get(),
+                                 grasp_candidate->grasp_data_->arm_jmg_, constraint_fn, _1, _2, _3);
 
-//   // Test it with IK
-//   ik_thread_struct->kin_solver_->searchPositionIK(ik_thread_struct->ik_pose_.pose, ik_thread_struct->ik_seed_state_,
-//                                                   ik_thread_struct->timeout_, ik_solution, ik_callback_fn,
-//                                                   ik_thread_struct->error_code_);
+  // Test it with IK
+  ik_thread_struct->kin_solver_->searchPositionIK(ik_thread_struct->ik_pose_.pose, ik_thread_struct->ik_seed_state_,
+                                                  ik_thread_struct->timeout_, ik_solution, ik_callback_fn,
+                                                  ik_thread_struct->error_code_);
 
-//   // Results
-//   if (ik_thread_struct->error_code_.val == moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION)
-//   {
-//     // The grasp was valid but the pre-grasp was not
-//     ROS_INFO_STREAM_NAMED("grasp_filter.superdebug", "No IK solution");
-//     return false;
-//   }
-//   else if (ik_thread_struct->error_code_.val == moveit_msgs::MoveItErrorCodes::TIMED_OUT)
-//   {
-//     ROS_INFO_STREAM_NAMED("grasp_filter.superdebug", "Timed Out.");
-//     return false;
-//   }
-//   else if (ik_thread_struct->error_code_.val != moveit_msgs::MoveItErrorCodes::SUCCESS)
-//   {
-//     ROS_INFO_STREAM_NAMED("grasp_filter",
-//                            "Unknown MoveItErrorCode from IK solver: " << ik_thread_struct->error_code_.val);
-//     return false;
-//   }
+  // Results
+  if (ik_thread_struct->error_code_.val == moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION)
+  {
+    // The grasp was valid but the pre-grasp was not
+    ROS_INFO_STREAM_NAMED("grasp_filter.superdebug", "No IK solution");
+    return false;
+  }
+  else if (ik_thread_struct->error_code_.val == moveit_msgs::MoveItErrorCodes::TIMED_OUT)
+  {
+    ROS_INFO_STREAM_NAMED("grasp_filter.superdebug", "Timed Out.");
+    return false;
+  }
+  else if (ik_thread_struct->error_code_.val != moveit_msgs::MoveItErrorCodes::SUCCESS)
+  {
+    ROS_INFO_STREAM_NAMED("grasp_filter",
+                           "Unknown MoveItErrorCode from IK solver: " << ik_thread_struct->error_code_.val);
+    return false;
+  }
 
-//   return true;
-// }
+  return true;
+}
 
 bool GraspFilter::findIKSolutionNew(std::vector<double>& ik_solution, IkThreadStructPtr& ik_thread_struct,
                                     GraspCandidatePtr& grasp_candidate,

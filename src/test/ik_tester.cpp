@@ -123,7 +123,7 @@ public:
     visual_tools_->loadSharedRobotState();
     visual_tools_->getSharedRobotState()->setToDefaultValues();
     visual_tools_->publishRobotState(visual_tools_->getSharedRobotState());
-    robot_state::RobotStatePtr robot_state = visual_tools_->getSharedRobotState();
+    robot_state::RobotStatePtr kinematic_state = visual_tools_->getSharedRobotState();
 
     // ---------------------------------------------------------------------------------------------
     // Load grasp data specific to our robot
@@ -139,7 +139,7 @@ public:
 
     // ---------------------------------------------------------------------------------------------
     // Load grasp filter
-    grasp_filter_.reset(new moveit_grasps::GraspFilter(robot_state, visual_tools_));
+    grasp_filter_.reset(new moveit_grasps::GraspFilter(kinematic_state, visual_tools_));
 
     // ---------------------------------------------------------------------------------------------
     // Clear Markers
@@ -148,106 +148,19 @@ public:
     visual_tools_->publishAxis(world_cs);
   }
 
-  bool testRandomGrasps(std::size_t num_tests)
-  {
-    // Generate grasps for a bunch of random objects
-
-    // Loop
-    for (std::size_t i = 0; i < num_tests; ++i)
-    {
-      if (!ros::ok())
-        break;
-
-      ROS_INFO_STREAM_NAMED("test", "Adding random object " << i + 1 << " of " << num_tests);
-
-      // Generate random cuboid
-      geometry_msgs::Pose object_pose;
-      object_pose.position.x = 0.5;
-      object_pose.position.y = 0.0;
-      object_pose.position.z = 0.5;
-      // double depth;
-      // double width;
-      // double height;
-      double depth = 0.03;
-      double width = 0.03;
-      double height = 0.15;
-      // rviz_visual_tools::RandomPoseBounds pose_bounds(0.4, 0.6, -0.25, 0.25, 0,
-                                                      // 0.5);  // xmin, xmax, ymin, ymax, zmin, zmax
-      // visual_tools_->generateRandomCuboid(object_pose, depth, width, height, pose_bounds);
-      visual_tools_->publishCuboid(object_pose, depth, width, height, rviz_visual_tools::TRANSLUCENT_DARK);
-      // ros::Duration(10.0).sleep();
-
-      visual_tools_->publishAxis(object_pose, rviz_visual_tools::MEDIUM);
-
-      visual_tools_->trigger();
-
-      // Generate set of grasps for one object
-      ROS_INFO_STREAM_NAMED("test", "Generating cuboid grasps");
-      std::vector<moveit_grasps::GraspCandidatePtr> grasp_candidates;
-      grasp_generator_->generateGrasps(visual_tools_->convertPose(object_pose), depth, width, height, grasp_data_,
-                                       grasp_candidates);
-
-      // add grasps at variable depth
-      // grasp_generator_->addVariableDepthGrasps(visual_tools_->convertPose(object_pose), grasp_data_,
-      // grasp_candidates);
-
-      // Filter the grasp for only the ones that are reachable
-      ROS_INFO_STREAM_NAMED("test", "Filtering grasps kinematically");
-      bool filter_pregrasps = true;
-      bool verbose = false;  // note: setting this to true will disable threading
-      // int direction = 1;
-
-      // world X goes into shelf, so filter all grasps behind the YZ oriented plane of the object
-      // Eigen::Affine3d filter_pose = Eigen::Affine3d::Identity();
-      // filter_pose.translation() = visual_tools_->convertPose(object_pose).translation();
-      // //visual_tools_->publishAxis(filter_pose);
-      // grasp_filter_->clearCuttingPlanes();
-      // grasp_filter_->addCuttingPlane(filter_pose, moveit_grasps::YZ, direction);
-
-      // // can only reach the object from the front
-      // filter_pose = Eigen::Affine3d::Identity();
-      // filter_pose = filter_pose * Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY());
-      // filter_pose.translation() = visual_tools_->convertPose(object_pose).translation();
-      // //visual_tools_->publishAxis(filter_pose);
-      // grasp_filter_->clearDesiredGraspOrientations();
-      // grasp_filter_->addDesiredGraspOrientation(filter_pose, M_PI / 4.0);
-
-      std::size_t valid_grasps = grasp_filter_->filterGrasps(grasp_candidates, planning_scene_monitor_, arm_jmg_,
-                                                             visual_tools_->getSharedRobotState(), filter_pregrasps);
-
-      // std::cout<<valid_grasps<<std::endl;
-      if (valid_grasps == 0)
-      {
-        ROS_ERROR_STREAM_NAMED("test", "No valid grasps found after IK filtering");
-        continue;
-      }
-
-      ROS_INFO_STREAM_NAMED("test", "finished trial, wating 5s to start next trial");
-
-      for (auto each: grasp_candidates)
-      {
-        // std::cout << each->pregrasp_filtered_by_ik_ << each->grasp_filtered_by_ik_ << each->grasp_filtered_by_cutting_plane_ << each->grasp_filtered_by_orientation_ << std::endl;
-        if (each->isValid())
-        {
-          std::cout << "yipee!!" << std::endl;
-        }
-      }
-
-      ros::Duration(5.0).sleep();  // give some time to look at results of each trial
-    }                              // for each trial
-    return true;
-  }
-
   bool unitTest()
   {
-    // Generate random cuboid
     geometry_msgs::Pose object_pose;
-    generateTestObject(object_pose);
-    double depth = 0.1;
-    double width = 0.1;
-    double height = 0.1;
+    object_pose.position.x = 0.5;
+    object_pose.position.y = 0.0;
+    object_pose.position.z = 0.5;
+    double depth = 0.03;
+    double width = 0.03;
+    double height = 0.15;
+
     visual_tools_->publishCuboid(object_pose, depth, width, height, rviz_visual_tools::TRANSLUCENT_DARK);
     visual_tools_->publishAxis(object_pose, rviz_visual_tools::MEDIUM);
+    visual_tools_->trigger();
 
     // Generate set of grasps for one object
     ROS_INFO_STREAM_NAMED("test", "Generating cuboid grasps");
@@ -255,8 +168,30 @@ public:
     grasp_generator_->generateGrasps(visual_tools_->convertPose(object_pose), depth, width, height, grasp_data_,
                                      grasp_candidates);
 
-    // add grasps at variable depth
-    // grasp_generator_->addVariableDepthGrasps(visual_tools_->convertPose(object_pose), grasp_data_, grasp_candidates);
+    // robot_state::RobotStatePtr kinematic_state = visual_tools_->getSharedRobotState();
+    // for (auto each: grasp_candidates)
+    // {
+    //   std::size_t attempts = 10;
+    //   double timeout = 0.1;
+    //   bool found_ik = kinematic_state->setFromIK(arm_jmg_, each->grasp_.grasp_pose.pose, attempts, timeout);
+    //   std::vector<double> joint_values;
+    //   const std::vector<std::string>& joint_names = arm_jmg_->getVariableNames();
+    //   if (found_ik)
+    //   {
+    //     kinematic_state->copyJointGroupPositions(arm_jmg_, joint_values);
+    //     for (std::size_t i = 0; i < joint_names.size(); ++i)
+    //     {
+    //       ROS_INFO("Joint %s: %f", joint_names[i].c_str(), joint_values[i]);
+    //     }
+    //   }
+    //   else
+    //   {
+    //     ROS_INFO("Did not find IK solution");
+    //   }
+    // }
+
+    // // add grasps at variable depth
+    // // grasp_generator_->addVariableDepthGrasps(visual_tools_->convertPose(object_pose), grasp_data_, grasp_candidates);
 
     // Filter the grasp for only the ones that are reachable
     ROS_INFO_STREAM_NAMED("test", "Filtering grasps kinematically");
@@ -264,20 +199,22 @@ public:
     bool verbose = false;  // note: setting this to true will disable threading
     int direction = 1;
 
-    // world X goes into shelf, so filter all grasps behind the YZ oriented plane of the object
-    Eigen::Affine3d filter_pose = Eigen::Affine3d::Identity();
-    filter_pose.translation() = visual_tools_->convertPose(object_pose).translation();
+    // // world X goes into shelf, so filter all grasps behind the YZ oriented plane of the object
+    // Eigen::Affine3d filter_pose = Eigen::Affine3d::Identity();
+    // filter_pose.translation() = visual_tools_->convertPose(object_pose).translation();
     // visual_tools_->publishAxis(filter_pose);
-    grasp_filter_->clearCuttingPlanes();
-    grasp_filter_->addCuttingPlane(filter_pose, moveit_grasps::YZ, direction);
+    // grasp_filter_->clearCuttingPlanes();
+    // grasp_filter_->addCuttingPlane(filter_pose, moveit_grasps::YZ, direction);
 
-    // can only reach the object from the front
-    filter_pose = Eigen::Affine3d::Identity();
-    filter_pose = filter_pose * Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY());
-    filter_pose.translation() = visual_tools_->convertPose(object_pose).translation();
+    // // can only reach the object from the front
+    // filter_pose = Eigen::Affine3d::Identity();
+    // filter_pose = filter_pose * Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY());
+    // filter_pose.translation() = visual_tools_->convertPose(object_pose).translation();
     // visual_tools_->publishAxis(filter_pose);
-    grasp_filter_->clearDesiredGraspOrientations();
-    grasp_filter_->addDesiredGraspOrientation(filter_pose, M_PI / 4.0);
+    // grasp_filter_->clearDesiredGraspOrientations();
+    // grasp_filter_->addDesiredGraspOrientation(filter_pose, M_PI / 4.0);
+
+    // visual_tools_->trigger();
 
     std::size_t valid_grasps = grasp_filter_->filterGrasps(grasp_candidates, planning_scene_monitor_, arm_jmg_,
                                                            visual_tools_->getSharedRobotState(), filter_pregrasps);
@@ -288,22 +225,6 @@ public:
       return false;
     }
     return true;
-  }
-
-  void generateTestObject(geometry_msgs::Pose& object_pose)
-  {
-    // Position
-    object_pose.position.x = 0.75;
-    object_pose.position.y = 0.1;
-    object_pose.position.z = 0.02;
-
-    // Orientation
-    double angle = M_PI / 1.5;
-    Eigen::Quaterniond quat(Eigen::AngleAxis<double>(double(angle), Eigen::Vector3d::UnitZ()));
-    object_pose.orientation.x = quat.x();
-    object_pose.orientation.y = quat.y();
-    object_pose.orientation.z = quat.z();
-    object_pose.orientation.w = quat.w();
   }
 
 private:
@@ -340,7 +261,7 @@ int main(int argc, char* argv[])
 {
   int num_tests = 1;
 
-  ros::init(argc, argv, "grasp_generator_test");
+  ros::init(argc, argv, "ik_filter_test");
 
   // Allow the action server to recieve and send ros messages
   ros::AsyncSpinner spinner(2);
@@ -355,8 +276,8 @@ int main(int argc, char* argv[])
 
   // Run Tests
   moveit_grasps::GraspGeneratorTest tester;
-  tester.testRandomGrasps(num_tests);
-  // tester.unitTest();
+  // tester.testRandomGrasps(num_tests);
+  tester.unitTest();
 
   // Benchmark time
   double duration = (ros::Time::now() - start_time).toNSec() * 1e-6;

@@ -47,7 +47,7 @@
 
 namespace moveit_grasps
 {
-static const double BLOCK_SIZE = 0.04;
+static const double BLOCK_SIZE = 0.02;
 
 class GraspGeneratorTest
 {
@@ -60,7 +60,7 @@ private:
 
   // class for publishing stuff to rviz
   moveit_visual_tools::MoveItVisualToolsPtr visual_tools_;
-  rviz_visual_tools::RvizVisualToolsPtr grasp_visuals_;
+  // rviz_visual_tools::RvizVisualToolsPtr grasp_visuals_;
 
   // robot-specific data for generating grasps
   moveit_grasps::GraspDataPtr grasp_data_;
@@ -73,18 +73,20 @@ public:
   // Constructor
   GraspGeneratorTest(int num_tests) : nh_("~")
   {
-    nh_.param("ee_group_name", ee_group_name_, std::string("left_hand"));
+    nh_.param("ee_group_name", ee_group_name_, std::string("hand"));
+    // // nh_.param("planning_group_name_", planning_group_name_, std::string("panda_arm"));
 
-    ROS_INFO_STREAM_NAMED("test", "End Effector: " << ee_group_name_);
-    ROS_INFO_STREAM_NAMED("test", "Planning Group: " << planning_group_name_);
+    // // ROS_INFO_STREAM_NAMED("test", "Boooooooooooooooooooooooooooooo" );
+    // ROS_INFO_STREAM_NAMED("test", "End Effector: " << ee_group_name_);
+    // ROS_INFO_STREAM_NAMED("test", "Planning Group: " << planning_group_name_);
 
     // ---------------------------------------------------------------------------------------------
     // Load the Robot Viz Tools for publishing to Rviz
-    visual_tools_.reset(new moveit_visual_tools::MoveItVisualTools("base"));
+    visual_tools_.reset(new moveit_visual_tools::MoveItVisualTools("panda_link0", "grasp_visuals"));
     visual_tools_->deleteAllMarkers();
 
-    grasp_visuals_.reset(new rviz_visual_tools::RvizVisualTools("base", "grasp_visuals"));
-    grasp_visuals_->deleteAllMarkers();
+    // grasp_visuals_.reset(new rviz_visual_tools::RvizVisualTools("panda_link0", "grasp_visuals"));
+    // grasp_visuals_->deleteAllMarkers();
 
     // ---------------------------------------------------------------------------------------------
     // Load grasp data specific to our robot
@@ -99,39 +101,46 @@ public:
 
     grasp_generator_->ideal_grasp_pose_ = Eigen::Affine3d::Identity();
     grasp_generator_->ideal_grasp_pose_ = grasp_generator_->ideal_grasp_pose_ *
-                                          Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitZ()) *
-                                          Eigen::AngleAxisd(-M_PI / 2.0, Eigen::Vector3d::UnitX());
-    grasp_generator_->ideal_grasp_pose_.translation() = Eigen::Vector3d(0, 0, 0.5);
+                                          Eigen::AngleAxisd(0.5*M_PI, Eigen::Vector3d::UnitY()) *
+      																	  Eigen::AngleAxisd(0.25*M_PI, Eigen::Vector3d::UnitZ());
+    grasp_generator_->ideal_grasp_pose_.translation() = Eigen::Vector3d(0.4, 0, 0.5);
 
     // Visualize poses
-    grasp_visuals_->publishAxisLabeled(grasp_generator_->ideal_grasp_pose_, "IDEAL_EE_GRASP_POSE");
+    // grasp_visuals_->publishAxisLabeled(grasp_generator_->ideal_grasp_pose_, "IDEAL_EE_GRASP_POSE");
+    // visual_tools_->publishAxisLabeled(grasp_generator_->ideal_grasp_pose_, "IDEAL_EE_GRASP_POSE");
 
-    Eigen::Affine3d grasp_to_eef = grasp_generator_->ideal_grasp_pose_ * grasp_data_->grasp_pose_to_eef_pose_;
-    grasp_visuals_->publishAxisLabeled(grasp_to_eef, "GRASP_POSE_TO_EEF_POSE_");
+    // Eigen::Affine3d grasp_to_eef = grasp_generator_->ideal_grasp_pose_ * grasp_data_->grasp_pose_to_eef_pose_;
+    // visual_tools_->publishAxisLabeled(grasp_to_eef, "GRASP_POSE_TO_EEF_POSE_");
+    // grasp_visuals_->publishAxisLabeled(grasp_to_eef, "GRASP_POSE_TO_EEF_POSE_");
 
     // publish world coordinate system
-    grasp_visuals_->publishAxis(Eigen::Affine3d::Identity());
+    // grasp_visuals_->publishAxis(Eigen::Affine3d::Identity());
+    // visual_tools_->publishAxis(Eigen::Affine3d::Identity());
 
-    geometry_msgs::Pose pose;
-    visual_tools_->generateEmptyPose(pose);
+    // visual_tools_->trigger();
 
-    // ---------------------------------------------------------------------------------------------
-    // Animate open and closing end effector
-    if (false)
-    {
-      for (std::size_t i = 0; i < 4; ++i)
-      {
-        // Test visualization of end effector in OPEN position
-        grasp_data_->setRobotStatePreGrasp(visual_tools_->getSharedRobotState());
-        visual_tools_->publishEEMarkers(pose, ee_jmg, rviz_visual_tools::ORANGE, "test_eef");
-        ros::Duration(1.0).sleep();
+    // geometry_msgs::Pose pose;
+    // visual_tools_->generateEmptyPose(pose);
 
-        // Test visualization of end effector in CLOSED position
-        grasp_data_->setRobotStateGrasp(visual_tools_->getSharedRobotState());
-        visual_tools_->publishEEMarkers(pose, ee_jmg, rviz_visual_tools::GREEN, "test_eef");
-        ros::Duration(1.0).sleep();
-      }
-    }
+    // // ---------------------------------------------------------------------------------------------
+    // // Animate open and closing end effector
+    // if (false)
+    // {
+    //   for (std::size_t i = 0; i < 4; ++i)
+    //   {
+    //     // Test visualization of end effector in OPEN position
+    //     grasp_data_->setRobotStatePreGrasp(visual_tools_->getSharedRobotState());
+    //     visual_tools_->publishEEMarkers(pose, ee_jmg, rviz_visual_tools::ORANGE, "test_eef");
+    //     visual_tools_->trigger();
+    //     ros::Duration(1.0).sleep();
+
+    //     // Test visualization of end effector in CLOSED position
+    //     grasp_data_->setRobotStateGrasp(visual_tools_->getSharedRobotState());
+    //     visual_tools_->publishEEMarkers(pose, ee_jmg, rviz_visual_tools::GREEN, "test_eef");
+    //     visual_tools_->trigger();
+    //     ros::Duration(1.0).sleep();
+    //   }
+    // }
 
     // ---------------------------------------------------------------------------------------------
     // Generate grasps for a bunch of random objects
@@ -156,20 +165,40 @@ public:
       possible_grasps.clear();
 
       // Generate set of grasps for one object
-      double depth = 0.15;
-      double width = 0.05;
+      double depth = 0.03;
+      double width = 0.03;
       double height = 0.15;
 
-      grasp_visuals_->publishCuboid(object_pose, depth, width, height, rviz_visual_tools::TRANSLUCENT_DARK);
-      grasp_visuals_->publishAxis(object_pose, rviz_visual_tools::MEDIUM);
+      // grasp_visuals_->publishCuboid(object_pose, depth, width, height, rviz_visual_tools::TRANSLUCENT_DARK);
+      // grasp_visuals_->publishAxis(object_pose, rviz_visual_tools::MEDIUM);
+
+      visual_tools_->publishCuboid(object_pose, depth, width, height, rviz_visual_tools::TRANSLUCENT_DARK);
+      visual_tools_->publishAxis(object_pose, rviz_visual_tools::MEDIUM);
+
+      visual_tools_->trigger();
 
       grasp_generator_->generateGrasps(visual_tools_->convertPose(object_pose), depth, width, height, grasp_data_,
                                        possible_grasps);
 
       // Visualize them
-      // visual_tools_->publishAnimatedGrasps(possible_grasps, ee_jmg);
-      // double animate_speed = 0.1;
-      // visual_tools_->publishGrasps(possible_grasps, ee_jmg, animate_speed);
+      std::vector<moveit_msgs::Grasp> grasps;
+      int j = 0;
+      for (auto i: possible_grasps) {
+      	j++;
+      	grasps.push_back(i->grasp_);
+      	if (j >= 10){
+      		break;
+      	}
+      }
+      ROS_INFO_STREAM_NAMED("visualization", "about to Visualize grasps");
+      // visual_tools_->publishAnimatedGrasps(grasps, ee_jmg);
+      double animate_speed = 1.0;
+      visual_tools_->publishGrasps(grasps, ee_jmg, animate_speed);
+
+      ROS_INFO_STREAM_NAMED("visualization", "Done Visualizing grasps");
+
+      visual_tools_->trigger();
+      // ros::WallDuration(10.0).sleep();
 
       // Test if done
       ++i;
@@ -188,16 +217,18 @@ public:
     start_object_pose.position.z = 0.5;
 
     // Orientation
-    double angle = M_PI / 1.5;
-    Eigen::Quaterniond quat(Eigen::AngleAxis<double>(double(angle), Eigen::Vector3d::UnitZ()));
-    start_object_pose.orientation.x = quat.x();
-    start_object_pose.orientation.y = quat.y();
-    start_object_pose.orientation.z = quat.z();
-    start_object_pose.orientation.w = quat.w();
+    // double angle = M_PI / 1.5;
+    // Eigen::Quaterniond quat(Eigen::AngleAxis<double>(double(angle), Eigen::Vector3d::UnitZ()));
+    // start_object_pose.orientation.x = quat.x();
+    // start_object_pose.orientation.y = quat.y();
+    // start_object_pose.orientation.z = quat.z();
+    // start_object_pose.orientation.w = quat.w();
+    start_object_pose.orientation.w = 1;
 
     // Choose which object to test
     object_pose = start_object_pose;
     // visual_tools_->publishObject( object_pose, OBJECT_SIZE, true );
+    // visual_tools_.trigger();
   }
 
   void generateRandomObject(geometry_msgs::Pose& object_pose)
